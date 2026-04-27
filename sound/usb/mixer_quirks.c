@@ -524,34 +524,34 @@ static int snd_emu0204_controls_create(struct usb_mixer_interface *mixer)
 
 #if IS_REACHABLE(CONFIG_INPUT)
 /*
- * Sony DualSense controller (PS5) jack detection
+ * PS5 controller jack detection
  *
- * Since this is an UAC 1 device, it doesn't support jack detection.
- * However, the controller hid-playstation driver reports HP & MIC
+ * Since these are UAC 1 devices, they doesn't support jack detection.
+ * However, the controller hid-playstation and hid-sony driver reports HP & MIC
  * insert events through a dedicated input device.
  */
 
 #define SND_DUALSENSE_JACK_OUT_TERM_ID 3
 #define SND_DUALSENSE_JACK_IN_TERM_ID 4
 
-struct dualsense_mixer_elem_info {
+struct ps5_controller_mixer_elem_info {
 	struct usb_mixer_elem_info info;
 	struct input_handler ih;
 	struct input_device_id id_table[2];
 	bool connected;
 };
 
-static void snd_dualsense_ih_event(struct input_handle *handle,
+static void snd_ps5_controller_ih_event(struct input_handle *handle,
 				   unsigned int type, unsigned int code,
 				   int value)
 {
-	struct dualsense_mixer_elem_info *mei;
+	struct ps5_controller_mixer_elem_info *mei;
 	struct usb_mixer_elem_list *me;
 
 	if (type != EV_SW)
 		return;
 
-	mei = container_of(handle->handler, struct dualsense_mixer_elem_info, ih);
+	mei = container_of(handle->handler, struct ps5_controller_mixer_elem_info, ih);
 	me = &mei->info.head;
 
 	if ((me->id == SND_DUALSENSE_JACK_OUT_TERM_ID && code == SW_HEADPHONE_INSERT) ||
@@ -562,16 +562,16 @@ static void snd_dualsense_ih_event(struct input_handle *handle,
 	}
 }
 
-static bool snd_dualsense_ih_match(struct input_handler *handler,
+static bool snd_ps5_controller_ih_match(struct input_handler *handler,
 				   struct input_dev *dev)
 {
-	struct dualsense_mixer_elem_info *mei;
+	struct ps5_controller_mixer_elem_info *mei;
 	struct usb_device *snd_dev;
 	char *input_dev_path, *usb_dev_path;
 	size_t usb_dev_path_len;
 	bool match = false;
 
-	mei = container_of(handler, struct dualsense_mixer_elem_info, ih);
+	mei = container_of(handler, struct ps5_controller_mixer_elem_info, ih);
 	snd_dev = mei->info.head.mixer->chip->dev;
 
 	input_dev_path = kobject_get_path(&dev->dev.kobj, GFP_KERNEL);
@@ -609,7 +609,7 @@ free_paths:
 	return match;
 }
 
-static int snd_dualsense_ih_connect(struct input_handler *handler,
+static int snd_ps5_controller_ih_connect(struct input_handler *handler,
 				    struct input_dev *dev,
 				    const struct input_device_id *id)
 {
@@ -641,20 +641,20 @@ err_free:
 	return err;
 }
 
-static void snd_dualsense_ih_disconnect(struct input_handle *handle)
+static void snd_ps5_controller_ih_disconnect(struct input_handle *handle)
 {
 	input_close_device(handle);
 	input_unregister_handle(handle);
 	kfree(handle);
 }
 
-static void snd_dualsense_ih_start(struct input_handle *handle)
+static void snd_ps5_controller_ih_start(struct input_handle *handle)
 {
-	struct dualsense_mixer_elem_info *mei;
+	struct ps5_controller_mixer_elem_info *mei;
 	struct usb_mixer_elem_list *me;
 	int status = -1;
 
-	mei = container_of(handle->handler, struct dualsense_mixer_elem_info, ih);
+	mei = container_of(handle->handler, struct ps5_controller_mixer_elem_info, ih);
 	me = &mei->info.head;
 
 	if (me->id == SND_DUALSENSE_JACK_OUT_TERM_ID &&
@@ -671,33 +671,33 @@ static void snd_dualsense_ih_start(struct input_handle *handle)
 	}
 }
 
-static int snd_dualsense_jack_get(struct snd_kcontrol *kctl,
+static int snd_ps5_controller_jack_get(struct snd_kcontrol *kctl,
 				  struct snd_ctl_elem_value *ucontrol)
 {
-	struct dualsense_mixer_elem_info *mei = snd_kcontrol_chip(kctl);
+	struct ps5_controller_mixer_elem_info *mei = snd_kcontrol_chip(kctl);
 
 	ucontrol->value.integer.value[0] = mei->connected;
 
 	return 0;
 }
 
-static const struct snd_kcontrol_new snd_dualsense_jack_control = {
+static const struct snd_kcontrol_new snd_ps5_controller_jack_control = {
 	.iface = SNDRV_CTL_ELEM_IFACE_CARD,
 	.access = SNDRV_CTL_ELEM_ACCESS_READ,
 	.info = snd_ctl_boolean_mono_info,
-	.get = snd_dualsense_jack_get,
+	.get = snd_ps5_controller_jack_get,
 };
 
-static int snd_dualsense_resume_jack(struct usb_mixer_elem_list *list)
+static int snd_ps5_controller_resume_jack(struct usb_mixer_elem_list *list)
 {
 	snd_ctl_notify(list->mixer->chip->card, SNDRV_CTL_EVENT_MASK_VALUE,
 		       &list->kctl->id);
 	return 0;
 }
 
-static void snd_dualsense_mixer_elem_free(struct snd_kcontrol *kctl)
+static void snd_ps5_controller_mixer_elem_free(struct snd_kcontrol *kctl)
 {
-	struct dualsense_mixer_elem_info *mei = snd_kcontrol_chip(kctl);
+	struct ps5_controller_mixer_elem_info *mei = snd_kcontrol_chip(kctl);
 
 	if (mei->ih.event)
 		input_unregister_handler(&mei->ih);
@@ -705,10 +705,10 @@ static void snd_dualsense_mixer_elem_free(struct snd_kcontrol *kctl)
 	snd_usb_mixer_elem_free(kctl);
 }
 
-static int snd_dualsense_jack_create(struct usb_mixer_interface *mixer,
+static int snd_ps5_controller_jack_create(struct usb_mixer_interface *mixer,
 				     const char *name, bool is_output)
 {
-	struct dualsense_mixer_elem_info *mei;
+	struct ps5_controller_mixer_elem_info *mei;
 	struct input_device_id *idev_id;
 	struct snd_kcontrol *kctl;
 	int err;
@@ -721,20 +721,20 @@ static int snd_dualsense_jack_create(struct usb_mixer_interface *mixer,
 				    is_output ? SND_DUALSENSE_JACK_OUT_TERM_ID :
 						SND_DUALSENSE_JACK_IN_TERM_ID);
 
-	mei->info.head.resume = snd_dualsense_resume_jack;
+	mei->info.head.resume = snd_ps5_controller_resume_jack;
 	mei->info.val_type = USB_MIXER_BOOLEAN;
 	mei->info.channels = 1;
 	mei->info.min = 0;
 	mei->info.max = 1;
 
-	kctl = snd_ctl_new1(&snd_dualsense_jack_control, mei);
+	kctl = snd_ctl_new1(&snd_ps5_controller_jack_control, mei);
 	if (!kctl) {
 		kfree(mei);
 		return -ENOMEM;
 	}
 
 	strscpy(kctl->id.name, name, sizeof(kctl->id.name));
-	kctl->private_free = snd_dualsense_mixer_elem_free;
+	kctl->private_free = snd_ps5_controller_mixer_elem_free;
 
 	err = snd_usb_mixer_add_control(&mei->info.head, kctl);
 	if (err)
@@ -751,11 +751,11 @@ static int snd_dualsense_jack_create(struct usb_mixer_interface *mixer,
 	else
 		idev_id->swbit[BIT_WORD(SW_MICROPHONE_INSERT)] = BIT_MASK(SW_MICROPHONE_INSERT);
 
-	mei->ih.event = snd_dualsense_ih_event;
-	mei->ih.match = snd_dualsense_ih_match;
-	mei->ih.connect = snd_dualsense_ih_connect;
-	mei->ih.disconnect = snd_dualsense_ih_disconnect;
-	mei->ih.start = snd_dualsense_ih_start;
+	mei->ih.event = snd_ps5_controller_ih_event;
+	mei->ih.match = snd_ps5_controller_ih_match;
+	mei->ih.connect = snd_ps5_controller_ih_connect;
+	mei->ih.disconnect = snd_ps5_controller_ih_disconnect;
+	mei->ih.start = snd_ps5_controller_ih_start;
 	mei->ih.name = name;
 	mei->ih.id_table = mei->id_table;
 
@@ -769,15 +769,15 @@ static int snd_dualsense_jack_create(struct usb_mixer_interface *mixer,
 	return 0;
 }
 
-static int snd_dualsense_controls_create(struct usb_mixer_interface *mixer)
+static int snd_ps5_controller_controls_create(struct usb_mixer_interface *mixer)
 {
 	int err;
 
-	err = snd_dualsense_jack_create(mixer, "Headphone Jack", true);
+	err = snd_ps5_controller_jack_create(mixer, "Headphone Jack", true);
 	if (err < 0)
 		return err;
 
-	return snd_dualsense_jack_create(mixer, "Headset Mic Jack", false);
+	return snd_ps5_controller_jack_create(mixer, "Headset Mic Jack", false);
 }
 #endif /* IS_REACHABLE(CONFIG_INPUT) */
 
@@ -4367,7 +4367,11 @@ int snd_usb_mixer_apply_create_quirk(struct usb_mixer_interface *mixer)
 #if IS_REACHABLE(CONFIG_INPUT)
 	case USB_ID(0x054c, 0x0ce6): /* Sony DualSense controller (PS5) */
 	case USB_ID(0x054c, 0x0df2): /* Sony DualSense Edge controller (PS5) */
-		err = snd_dualsense_controls_create(mixer);
+		err = snd_ps5_controller_controls_create(mixer);
+		break;
+
+	case USB_ID(0x0e6f, 0x0249): /* PDP Riffmaster (PS5) */
+		err = snd_ps5_controller_controls_create(mixer);
 		break;
 #endif /* IS_REACHABLE(CONFIG_INPUT) */
 
